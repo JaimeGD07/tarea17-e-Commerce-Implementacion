@@ -9,9 +9,9 @@ import type { Product } from "@/lib/api/types";
  *
  * - `use cache` + `cacheTag('products')`: tras crear una orden (cambia el stock)
  *   las Server Actions llaman a `updateTag('products')` y el catalogo se refresca.
- * - cacheLife con `expire` < 5 min: Next lo trata como "short-lived", asi que NO se
- *   prerenderiza en el build. Resultado: `next build` no necesita la API encendida y
- *   el catalogo llega por streaming detras de <Suspense>.
+ * - cacheLife corto (revalidate 60 s): el stock puede cambiar con cada compra.
+ * - Quien llama debe leer datos de la peticion antes (p. ej. `await connection()` o
+ *   `params`) para que NO se ejecute durante `next build`.
  */
 
 const CATALOG_LIFE = { stale: 30, revalidate: 60, expire: 240 } as const;

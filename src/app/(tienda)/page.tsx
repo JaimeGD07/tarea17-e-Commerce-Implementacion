@@ -1,3 +1,4 @@
+import { connection } from "next/server";
 import { Suspense } from "react";
 import { ProductCard } from "@/components/product-card";
 import { ProductGridSkeleton } from "@/components/skeletons";
@@ -25,6 +26,9 @@ export default function CatalogPage() {
 }
 
 async function ProductList() {
+  // Marca la lista como dato de la peticion: no se prerenderiza en `next build`,
+  // asi el build no depende de que la API este encendida.
+  await connection();
   const products = await getProducts();
 
   if (products.length === 0) {

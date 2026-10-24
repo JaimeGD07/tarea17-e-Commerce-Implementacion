@@ -13,6 +13,12 @@ const products = [
   image_url: `http://localhost:8030/img/${seed}.svg`,
 }));
 
+const users = [
+  { id: 1, name: "Demo Kodigo", email: "demo@kodigo.dev", password: "password123" },
+  { id: 2, name: "Sesión Corta", email: "expira@kodigo.dev", password: "password123" },
+];
+const revoked = new Set();
+
 const send = (res, status, body) => {
   res.writeHead(status, { "Content-Type": "application/json" });
   res.end(JSON.stringify(body));
@@ -29,8 +35,7 @@ http.createServer(async (req, res) => {
     res.writeHead(200, { "Content-Type": "image/svg+xml" });
     return res.end(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 300"><defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="hsl(${hue},45%,22%)"/><stop offset="1" stop-color="hsl(${(hue + 40) % 360},50%,12%)"/></linearGradient></defs><rect width="400" height="300" fill="url(#g)"/><rect x="130" y="95" width="140" height="110" rx="10" fill="none" stroke="hsl(${hue},60%,70%)" stroke-width="4"/><circle cx="200" cy="150" r="22" fill="hsl(${hue},60%,70%)"/></svg>`);
   }
-  const hasAuth = req.headers.authorization === "Bearer mock-token";
-  if (req.headers.accept !== "application/json")
+    if (req.headers.accept !== "application/json")
     return send(res, 500, { message: "Falta Accept: application/json" });
 
   if (DELAY && url.pathname.startsWith("/api/products")) await new Promise((r) => setTimeout(r, DELAY));
@@ -41,9 +46,54 @@ http.createServer(async (req, res) => {
     const p = products.find((x) => x.id === Number(m[1]));
     return p ? send(res, 200, p) : send(res, 404, { message: "No query results for model [App\\Models\\Product]" });
   }
-  if (url.pathname === "/api/auth/me")
-    return hasAuth ? send(res, 200, { id: 1, name: "Jaime", email: "j@x.com" }) : send(res, 401, { message: "Unauthenticated." });
-  if (url.pathname === "/api/auth/login" && req.method === "POST")
-    return send(res, 401, { message: "Credenciales inválidas" });
+  // ---- Autenticacion simulada (formato de la API Laravel + JWT) ----
+  const b64 = (o) => Buffer.from(JSON.stringify(o)).toString("base64url");
+  const makeJwt = (sub, ttl) =>
+    `${b64({ alg: "HS256", typ: "JWT" })}.${b64({ sub, iat: Math.floor(Date.now() / 1000), exp: Math.floor(Date.now() / 1000) + ttl })}.mocksig`;
+  const userFromToken = () => {
+    const t = (req.headers.authorization ?? "").replace(/^Bearer /, "");
+    try {
+      const p = JSON.parse(Buffer.from(t.split(".")[1], "base64url").toString());
+      if (p.exp * 1000 <= Date.now() || revoked.has(t)) return null;
+      return users.find((u) => u.id === p.sub) ?? null;
+    } catch { return null; }
+  };
+  const readBody = async () => {
+    let raw = "";
+    for await (const c of req) raw += c;
+    try { return JSON.parse(raw || "{}"); } catch { return {}; }
+  };
+  const authOk = (user, ttl = 3600, jwtTtl = ttl) =>
+    ({ user: { id: user.id, name: user.name, email: user.email }, access_token: makeJwt(user.id, jwtTtl), token_type: "bearer", expires_in: ttl });
+
+  if (url.pathname === "/api/auth/login" && req.method === "POST") {
+    const { email, password } = await readBody();
+    const u = users.find((x) => x.email === email && x.password === password);
+    if (!u) return send(res, 401, { message: "Credenciales inválidas" });
+    // expira@: el JWT vence a los 6 s pero la cookie dura 1 h (prueba del chequeo de expiracion)
+    return send(res, 200, authOk(u, 3600, u.email.startsWith("expira") ? 6 : 3600));
+  }
+  if (url.pathname === "/api/auth/register" && req.method === "POST") {
+    const { name, email, password, password_confirmation } = await readBody();
+    const errors = {};
+    if (!name) errors.name = ["The name field is required."];
+    if (!email || !/^\S+@\S+\.\S+$/.test(email)) errors.email = ["The email field must be a valid email address."];
+    else if (users.some((x) => x.email === email)) errors.email = ["The email has already been taken."];
+    if (!password || password.length < 8) errors.password = ["The password field must be at least 8 characters."];
+    else if (password !== password_confirmation) errors.password = ["The password field confirmation does not match."];
+    if (Object.keys(errors).length) return send(res, 422, { message: "The given data was invalid.", errors });
+    const u = { id: users.length + 1, name, email, password };
+    users.push(u);
+    return send(res, 201, authOk(u));
+  }
+  if (url.pathname === "/api/auth/me") {
+    const u = userFromToken();
+    return u ? send(res, 200, { id: u.id, name: u.name, email: u.email }) : send(res, 401, { message: "Unauthenticated." });
+  }
+  if (url.pathname === "/api/auth/logout" && req.method === "POST") {
+    if (!userFromToken()) return send(res, 401, { message: "Unauthenticated." });
+    revoked.add((req.headers.authorization ?? "").replace(/^Bearer /, ""));
+    return send(res, 200, { message: "Sesión cerrada correctamente" });
+  }
   send(res, 404, { message: "Not found" });
 }).listen(8030, () => console.log("mock api on :8030"));
