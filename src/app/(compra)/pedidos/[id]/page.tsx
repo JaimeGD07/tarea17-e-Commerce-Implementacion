@@ -2,7 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Suspense } from "react";
 import { ProductImage } from "@/components/product-image";
-import { buttonSecondary } from "@/components/state-panel";
+import { buttonPrimary, buttonSecondary } from "@/components/state-panel";
 import { ApiError } from "@/lib/api/errors";
 import { apiGetOrder } from "@/lib/api/orders";
 import type { Order, OrderStatus } from "@/lib/api/types";
@@ -18,7 +18,16 @@ const STATUS: Record<OrderStatus, { label: string; className: string }> = {
   cancelled: { label: "Cancelado", className: "border-line-strong text-muted" },
 };
 
-export default function OrderPage({ params }: PageProps<"/pedidos/[id]">) {
+const PAYMENT_STATUS: Record<string, string> = {
+  pending: "Pendiente",
+  succeeded: "Pagado",
+  failed: "Fallido",
+};
+
+export default function OrderPage({
+  params,
+  searchParams,
+}: PageProps<"/pedidos/[id]">) {
   return (
     <main className="mx-auto max-w-4xl px-4 py-10 sm:px-6">
       <Suspense
@@ -30,7 +39,7 @@ export default function OrderPage({ params }: PageProps<"/pedidos/[id]">) {
           />
         }
       >
-        <OrderDetail params={params} />
+        <OrderDetail params={params} searchParams={searchParams} />
       </Suspense>
     </main>
   );
@@ -38,10 +47,13 @@ export default function OrderPage({ params }: PageProps<"/pedidos/[id]">) {
 
 async function OrderDetail({
   params,
+  searchParams,
 }: {
   params: PageProps<"/pedidos/[id]">["params"];
+  searchParams: PageProps<"/pedidos/[id]">["searchParams"];
 }) {
   const { id } = await params;
+  const sp = await searchParams;
   if (!/^\d+$/.test(id)) notFound();
 
   const { token } = await requireSession(`/pedidos/${id}`);
@@ -56,6 +68,7 @@ async function OrderDetail({
   }
 
   const status = STATUS[order.status] ?? STATUS.pending;
+  const justPaid = order.status === "paid" && sp.pago === "ok";
 
   return (
     <article>
@@ -69,6 +82,24 @@ async function OrderDetail({
           {status.label}
         </span>
       </div>
+
+      {justPaid ? (
+        <p
+          role="status"
+          className="mt-6 rounded border border-ok/50 bg-ok/10 px-3 py-2 text-sm text-ok"
+        >
+          Pago recibido. ¡Gracias por tu compra!
+        </p>
+      ) : null}
+      {order.status === "failed" ? (
+        <p
+          role="status"
+          className="mt-6 rounded border border-out/50 bg-out/10 px-3 py-2 text-sm text-out"
+        >
+          El pago no se completó y este pedido ya no admite nuevos intentos. Crea un
+          pedido nuevo desde el catálogo.
+        </p>
+      ) : null}
 
       <ul className="mt-8 divide-y divide-line rounded-md border border-line bg-panel">
         {(order.items ?? []).map((item) => (
@@ -103,7 +134,29 @@ async function OrderDetail({
         </span>
       </div>
 
-      <div className="mt-6">
+      {order.payment ? (
+        <dl className="mt-6 divide-y divide-line rounded-md border border-line bg-panel text-sm">
+          <div className="flex justify-between gap-4 px-4 py-3">
+            <dt className="text-muted">Estado del pago</dt>
+            <dd>{PAYMENT_STATUS[order.payment.status] ?? order.payment.status}</dd>
+          </div>
+          {order.payment.stripe_payment_intent_id ? (
+            <div className="flex justify-between gap-4 px-4 py-3">
+              <dt className="text-muted">Referencia de Stripe</dt>
+              <dd className="truncate font-mono text-xs sm:text-sm">
+                {order.payment.stripe_payment_intent_id}
+              </dd>
+            </div>
+          ) : null}
+        </dl>
+      ) : null}
+
+      <div className="mt-6 flex flex-wrap items-center gap-3">
+        {order.status === "pending" ? (
+          <Link href={`/pedidos/${order.id}/pago`} className={buttonPrimary}>
+            Pagar pedido
+          </Link>
+        ) : null}
         <Link href="/" className={buttonSecondary}>
           Seguir comprando
         </Link>

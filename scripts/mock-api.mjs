@@ -19,6 +19,7 @@ const users = [
 ];
 const revoked = new Set();
 const orders = [];
+const intents = new Map(); // pi_<orden>_<n> -> estado del PaymentIntent simulado
 
 const send = (res, status, body) => {
   res.writeHead(status, { "Content-Type": "application/json" });
@@ -102,6 +103,13 @@ http.createServer(async (req, res) => {
     products.find((x) => x.id === id).stock = stock;
     return send(res, 200, { ok: true });
   }
+  if (url.pathname === "/__state") // gancho SOLO para pruebas
+    return send(res, 200, orders.map((o) => ({ id: o.id, status: o.status, payments: o.payments?.length ?? 0, confirmHits: o.confirmHits ?? 0 })));
+  if (url.pathname === "/__intent-succeeded" && req.method === "POST") {
+    const { secret } = await readBody(); // "pi_<orden>_<n>_secret_mock" -> el "cliente" pago con exito
+    intents.set(String(secret).replace(/_secret_mock$/, ""), "succeeded");
+    return send(res, 200, { ok: true });
+  }
   if (url.pathname.startsWith("/api/orders")) {
     const u = userFromToken();
     if (!u) return send(res, 401, { message: "Unauthenticated." });
@@ -132,6 +140,33 @@ http.createServer(async (req, res) => {
       orders.push(order);
       return send(res, 201, order);
     }
+    const pm = url.pathname.match(/^\/api\/orders\/(\d+)\/(pay|confirm)$/);
+    if (pm && req.method === "POST") {
+      const o = orders.find((x) => x.id === Number(pm[1]));
+      if (!o) return send(res, 404, { message: "No query results for model [App\\Models\\Order]" });
+      if (o.user_id !== u.id)
+        return send(res, 403, { message: pm[2] === "pay" ? "No autorizado para pagar esta orden" : "No autorizado para confirmar esta orden" });
+      o.payments ??= [];
+      if (pm[2] === "pay") {
+        if (o.status !== "pending") return send(res, 422, { message: "Esta orden ya fue procesada" });
+        // Igual que PaymentController::createIntent: SIEMPRE crea un intento y un registro nuevos
+        const n = o.payments.length + 1;
+        const piId = `pi_${o.id}_${n}`;
+        intents.set(piId, "requires_payment_method");
+        const payment = { id: o.id * 100 + n, order_id: o.id, stripe_payment_intent_id: piId, amount: o.total, currency: "usd", status: "pending" };
+        o.payments.push(payment);
+        o.payment = o.payments[0]; // hasOne() devuelve el PRIMER registro
+        return send(res, 200, { client_secret: `${piId}_secret_mock`, payment });
+      }
+      o.confirmHits = (o.confirmHits ?? 0) + 1;
+      // confirm: revisa solo el primer intento y, si no esta pagado, deja la orden en "failed"
+      const first = o.payments[0];
+      if (!first) return send(res, 404, { message: "No existe un intento de pago para esta orden" });
+      const ok = intents.get(first.stripe_payment_intent_id) === "succeeded";
+      first.status = ok ? "succeeded" : "failed";
+      o.status = ok ? "paid" : "failed";
+      return send(res, 200, { order: { ...o, payments: undefined }, payment: first });
+    }
     if (url.pathname === "/api/orders" && req.method === "GET")
       return send(res, 200, orders.filter((o) => o.user_id === u.id).reverse());
     const om = url.pathname.match(/^\/api\/orders\/(\d+)$/);
@@ -139,7 +174,7 @@ http.createServer(async (req, res) => {
       const o = orders.find((x) => x.id === Number(om[1]));
       if (!o) return send(res, 404, { message: "No query results for model [App\\Models\\Order]" });
       if (o.user_id !== u.id) return send(res, 403, { message: "No autorizado para ver esta orden" });
-      return send(res, 200, o);
+      return send(res, 200, { ...o, payments: undefined, confirmHits: undefined });
     }
   }
   send(res, 404, { message: "Not found" });

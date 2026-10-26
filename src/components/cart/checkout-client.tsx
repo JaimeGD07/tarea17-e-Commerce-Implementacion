@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useActionState, useEffect, useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { ProductImage } from "@/components/product-image";
 import { StatePanel, buttonPrimary } from "@/components/state-panel";
 import { SubmitButton } from "@/components/auth/submit-button";
@@ -31,7 +31,31 @@ type Line = {
 export function CheckoutClient({ catalog }: { catalog: CatalogEntry[] }) {
   const router = useRouter();
   const { items, ready, clear } = useCart();
-  const [state, action] = useActionState(createOrderAction, undefined);
+  const [error, setError] = useState<string | undefined>();
+  const [orderId, setOrderId] = useState<number | undefined>();
+
+  // Next 16 conserva el estado de las paginas ya visitadas (Activity): sin este reset, volver a
+  // /checkout reutilizaba el pedido anterior y redirigia siempre a el.
+  useEffect(
+    () => () => {
+      setOrderId(undefined);
+      setError(undefined);
+    },
+    [],
+  );
+
+  async function action(formData: FormData) {
+    setError(undefined);
+    const res = await createOrderAction(undefined, formData);
+    if (res?.orderId !== undefined) {
+      // La orden ya existe en la API: ahora si se vacia el carrito local
+      setOrderId(res.orderId);
+      clear();
+      router.replace(`/pedidos/${res.orderId}`);
+    } else {
+      setError(res?.error ?? "No se pudo crear el pedido. Intenta de nuevo.");
+    }
+  }
 
   // Concilia el carrito con el catalogo actual: precio real, stock real, productos retirados
   const { lines, notices } = useMemo(() => {
@@ -62,14 +86,6 @@ export function CheckoutClient({ catalog }: { catalog: CatalogEntry[] }) {
     }
     return { lines, notices };
   }, [items, catalog]);
-
-  const orderId = state?.orderId;
-  useEffect(() => {
-    if (orderId === undefined) return;
-    // La orden ya existe en la API: ahora si se vacia el carrito local
-    clear();
-    router.replace(`/pedidos/${orderId}`);
-  }, [orderId, clear, router]);
 
   if (orderId !== undefined) {
     return (
@@ -122,12 +138,12 @@ export function CheckoutClient({ catalog }: { catalog: CatalogEntry[] }) {
       />
 
       <div className="space-y-4">
-        {state?.error ? (
+        {error ? (
           <p
             role="alert"
             className="rounded border border-out/50 bg-out/10 px-3 py-2 text-sm text-out"
           >
-            {state.error}
+            {error}
           </p>
         ) : null}
         {notices.length ? (

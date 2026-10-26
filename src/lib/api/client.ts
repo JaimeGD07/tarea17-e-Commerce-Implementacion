@@ -30,6 +30,8 @@ type RequestOptions = {
 
 type ErrorBody = {
   message?: string;
+  /** Detalle tecnico que algunas respuestas de la API agregan (p. ej. el motivo de Stripe en 502) */
+  error?: string;
   errors?: ValidationErrors;
 };
 
@@ -72,8 +74,9 @@ export async function apiFetch<T>(
 
   if (!res.ok) {
     const err = (data ?? {}) as ErrorBody;
+    const base = err.message || res.statusText || "Error inesperado de la API";
     throw new ApiError(
-      err.message || res.statusText || "Error inesperado de la API",
+      typeof err.error === "string" && err.error ? `${base}: ${err.error}` : base,
       res.status,
       err.errors,
     );
