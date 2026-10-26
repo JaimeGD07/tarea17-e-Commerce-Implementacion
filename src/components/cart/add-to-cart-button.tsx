@@ -39,7 +39,7 @@ export function AddToCartButton({ product }: { product: Product }) {
             {atLimit ? "Ya agregaste todo el stock disponible. " : null}
             <Link
               href="/carrito"
-              className="text-amber underline-offset-4 hover:underline"
+              className="text-amber underline underline-offset-4 hover:no-underline"
             >
               Ver carrito
             </Link>

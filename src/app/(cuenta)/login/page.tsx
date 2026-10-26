@@ -45,7 +45,7 @@ async function LoginContent({
         ¿No tienes cuenta?{" "}
         <Link
           href={next === "/" ? "/registro" : `/registro?next=${encodeURIComponent(next)}`}
-          className="text-amber underline-offset-4 hover:underline"
+          className="text-amber underline underline-offset-4 hover:no-underline"
         >
           Crear cuenta
         </Link>

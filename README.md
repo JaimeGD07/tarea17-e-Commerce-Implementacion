@@ -1,36 +1,103 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Kodigo Tech — Frontend e-commerce (Tarea 17)
 
-## Getting Started
+Tienda de hardware y periféricos construida con **Next.js 16 (App Router, TypeScript, Tailwind CSS v4)**. Consume la API REST de la [Tarea 12](https://github.com/JaimeGD07/tarea12-ecommerce-api) (Laravel 12, JWT, Stripe, Swagger).
 
-First, run the development server:
+## Qué incluye
+
+- Catálogo y detalle de producto públicos.
+- Registro, login y logout con el token JWT guardado en una **cookie `httpOnly`** (el JavaScript del navegador nunca lo ve).
+- Carrito en el navegador (Context + `localStorage`) y creación de pedidos con **Server Actions**.
+- Pago con tarjeta mediante **Stripe** (Payment Element).
+- Historial de compras protegido.
+- `loading.tsx`, `error.tsx`, `not-found.tsx` y `Suspense` en las rutas con datos.
+
+## Requisitos
+
+- Node.js 20 o superior y [pnpm](https://pnpm.io).
+- La API de la Tarea 12 en marcha (por defecto en `http://localhost:8030/api`, con Docker según su README).
+- Una cuenta de Stripe en **modo test** (claves `pk_test_…` y `sk_test_…`).
+
+## Instalación
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+pnpm install
+cp .env.example .env.local   # y completa los valores
+pnpm dev                     # http://localhost:3000
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Para producción: `pnpm build && pnpm start`.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+> Con pnpm 10+ puede pedir aprobar scripts de compilación: ejecuta `pnpm approve-builds`.
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+## Variables de entorno
 
-## Learn More
+| Variable | Dónde se usa | Descripción |
+| --- | --- | --- |
+| `API_BASE_URL` | Solo servidor | URL base de la API **con** el prefijo `/api` y sin `/` final. Ej.: `http://localhost:8030/api` |
+| `NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY` | Navegador | Clave **pública** de Stripe (`pk_test_…`). |
 
-To learn more about Next.js, take a look at the following resources:
+La clave secreta de Stripe (`STRIPE_SECRET=sk_test_…`) va **solo** en el `.env` de la API Laravel; este frontend nunca la usa. Ambas claves deben ser de la misma cuenta de Stripe. Tras cambiar `.env.local` hay que reiniciar `pnpm dev`.
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+## Rutas
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+| Ruta | Acceso | Descripción |
+| --- | --- | --- |
+| `/` | Pública | Catálogo de productos |
+| `/productos/[id]` | Pública | Detalle de producto y botón de agregar al carrito |
+| `/carrito` | Pública | Carrito de compras |
+| `/login`, `/registro` | Pública | Autenticación |
+| `/cuenta` | **Protegida** | Datos de la cuenta |
+| `/checkout` | **Protegida** | Revisión y confirmación del pedido |
+| `/pedidos` | **Protegida** | Historial de compras |
+| `/pedidos/[id]` | **Protegida** | Detalle y estado de un pedido |
+| `/pedidos/[id]/pago` | **Protegida** | Pago con Stripe |
 
-## Deploy on Vercel
+Las rutas protegidas se filtran en `src/proxy.ts` (comprobación rápida de la cookie) y se verifican de verdad contra la API en la capa de acceso a datos (`src/lib/auth/session.ts`). Sin sesión redirigen a `/login?next=…` y vuelven a la página pedida tras entrar.
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+## Cómo funciona
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+- **Lecturas** (catálogo, pedidos): Server Components. El catálogo usa `use cache` con `cacheTag("products")`; al crear un pedido (descuenta stock) la Server Action llama a `updateTag("products")`.
+- **Mutaciones** (login, registro, crear pedido, iniciar/confirmar pago): Server Actions en `src/lib/actions/`, con `revalidatePath` para refrescar el historial.
+- **Pago:** el servidor pide a la API el `client_secret` (`POST /orders/{id}/pay`); Stripe.js cobra en el navegador; solo si Stripe confirma, otra Server Action llama a `POST /orders/{id}/confirm`.
+- **Cache Components** activado (`cacheComponents: true`): todo lo que lee cookies o parámetros va dentro de `<Suspense>`.
+
+## Estructura
+
+```
+src/
+  app/            rutas (grupos: (tienda), (cuenta), (compra))
+  components/     UI (cart/, auth/, payment/, orders/)
+  lib/
+    api/          cliente de la API Laravel y tipos
+    auth/         cookie httpOnly, JWT, sesión (DAL)
+    actions/      Server Actions
+    cart/         estado del carrito
+    data/         lecturas cacheadas
+  proxy.ts        protección optimista de rutas
+scripts/
+  mock-api.mjs    API simulada solo para desarrollo sin Docker
+```
+
+## Probar el pago
+
+Con Stripe en modo test: `4242 4242 4242 4242` (aprobada) o `4000 0000 0000 0002` (rechazada), cualquier fecha futura y cualquier CVC.
+
+## Limitaciones conocidas de la API (Tarea 12)
+
+- `POST /orders/{id}/pay` crea un intento nuevo en cada llamada y `confirm` revisa solo el primero; por eso el frontend la llama una vez por pedido y guarda el `client_secret` en `localStorage`.
+- `confirm` marca el pedido como `failed` si el pago aún no está `succeeded`; el frontend solo lo llama después de que Stripe confirme.
+- El stock se descuenta al crear el pedido y no se devuelve si el pedido no se paga.
+- Los mensajes de validación de Laravel están en inglés.
+
+## Evidencias
+
+Capturas en [`docs/`](docs/): Swagger de la API, flujo de compra y reportes de Lighthouse.
+
+## Scripts
+
+| Comando | Acción |
+| --- | --- |
+| `pnpm dev` | Servidor de desarrollo |
+| `pnpm build` / `pnpm start` | Build y servidor de producción |
+| `pnpm lint` | ESLint |
+| `node scripts/mock-api.mjs` | API simulada en `:8030` (opcional) |
