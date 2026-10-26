@@ -1,7 +1,8 @@
+import Link from "next/link";
 import { Suspense } from "react";
 import { logoutAction } from "@/lib/actions/auth";
 import { requireSession } from "@/lib/auth/session";
-import { buttonSecondary } from "@/components/state-panel";
+import { buttonPrimary, buttonSecondary } from "@/components/state-panel";
 
 export const metadata = { title: "Mi cuenta" };
 
@@ -42,11 +43,16 @@ async function AccountDetails() {
           <dd className="font-mono">{user.email}</dd>
         </div>
       </dl>
-      <form action={logoutAction} className="mt-6">
-        <button type="submit" className={buttonSecondary}>
-          Cerrar sesión
-        </button>
-      </form>
+      <div className="mt-6 flex flex-wrap items-center gap-3">
+        <Link href="/pedidos" className={buttonPrimary}>
+          Ver mis pedidos
+        </Link>
+        <form action={logoutAction}>
+          <button type="submit" className={buttonSecondary}>
+            Cerrar sesión
+          </button>
+        </form>
+      </div>
     </>
   );
 }

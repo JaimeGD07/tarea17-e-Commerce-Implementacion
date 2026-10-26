@@ -5,7 +5,17 @@ import { buttonPrimary } from "./state-panel";
 
 /** Lee la cookie de sesion: debe renderizarse dentro de <Suspense> (ver SiteHeader). */
 export async function UserMenu() {
-  const user = await getCurrentUser();
+  // Si la API no responde, el encabezado no debe tumbar toda la pagina: mostramos un aviso
+  // y cada pagina decide como mostrar su propio error.
+  const user = await getCurrentUser().catch(() => "offline" as const);
+
+  if (user === "offline") {
+    return (
+      <li className="text-muted" title="No se pudo verificar tu sesión">
+        Sin conexión
+      </li>
+    );
+  }
 
   if (!user) {
     return (
@@ -26,6 +36,11 @@ export async function UserMenu() {
 
   return (
     <>
+      <li>
+        <Link href="/pedidos" className="text-muted transition-colors hover:text-text">
+          Pedidos
+        </Link>
+      </li>
       <li className="min-w-0">
         <Link
           href="/cuenta"

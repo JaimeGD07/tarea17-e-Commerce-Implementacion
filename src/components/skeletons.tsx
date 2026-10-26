@@ -50,3 +50,16 @@ export function ProductDetailSkeleton() {
     </div>
   );
 }
+
+export function OrderListSkeleton({ count = 3 }: { count?: number }) {
+  return (
+    <div aria-busy="true" aria-label="Cargando pedidos" className="mt-6">
+      <div className="h-5 w-56 animate-pulse rounded bg-panel-2" />
+      <div className="mt-4 space-y-4">
+        {Array.from({ length: count }, (_, i) => (
+          <div key={i} className="h-36 animate-pulse rounded-md border border-line bg-panel-2" />
+        ))}
+      </div>
+    </div>
+  );
+}

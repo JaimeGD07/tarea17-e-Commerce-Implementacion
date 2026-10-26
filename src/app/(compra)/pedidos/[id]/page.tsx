@@ -1,22 +1,16 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Suspense } from "react";
+import { StatusBadge } from "@/components/orders/status-badge";
 import { ProductImage } from "@/components/product-image";
 import { buttonPrimary, buttonSecondary } from "@/components/state-panel";
 import { ApiError } from "@/lib/api/errors";
 import { apiGetOrder } from "@/lib/api/orders";
-import type { Order, OrderStatus } from "@/lib/api/types";
+import type { Order } from "@/lib/api/types";
 import { requireSession } from "@/lib/auth/session";
 import { formatPrice, toNumber } from "@/lib/money";
 
 export const metadata = { title: "Detalle del pedido" };
-
-const STATUS: Record<OrderStatus, { label: string; className: string }> = {
-  pending: { label: "Pendiente de pago", className: "border-amber/60 text-amber" },
-  paid: { label: "Pagado", className: "border-ok/60 text-ok" },
-  failed: { label: "Pago fallido", className: "border-out/60 text-out" },
-  cancelled: { label: "Cancelado", className: "border-line-strong text-muted" },
-};
 
 const PAYMENT_STATUS: Record<string, string> = {
   pending: "Pendiente",
@@ -67,7 +61,6 @@ async function OrderDetail({
     throw e;
   }
 
-  const status = STATUS[order.status] ?? STATUS.pending;
   const justPaid = order.status === "paid" && sp.pago === "ok";
 
   return (
@@ -76,11 +69,7 @@ async function OrderDetail({
         <h1 className="font-display text-4xl font-bold tracking-tight">
           Pedido #{order.id}
         </h1>
-        <span
-          className={`rounded-full border px-3 py-0.5 text-sm ${status.className}`}
-        >
-          {status.label}
-        </span>
+        <StatusBadge status={order.status} />
       </div>
 
       {justPaid ? (
