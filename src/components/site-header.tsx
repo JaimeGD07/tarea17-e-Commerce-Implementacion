@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { Suspense } from "react";
+import { CartLink } from "./cart/cart-link";
 import { UserMenu } from "./user-menu";
 
 export function SiteHeader() {
@@ -25,6 +26,9 @@ export function SiteHeader() {
               >
                 Catálogo
               </Link>
+            </li>
+            <li>
+              <CartLink />
             </li>
             {/* El menu depende de la cookie: va en Suspense para no bloquear el resto de la pagina */}
             <Suspense

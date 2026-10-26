@@ -4,6 +4,11 @@ export function toNumber(value: string | number): number {
   return Number.isFinite(n) ? n : 0;
 }
 
+/** Centavos enteros: evita errores de coma flotante al sumar (0.1 + 0.2). */
+export function toCents(value: string | number): number {
+  return Math.round(toNumber(value) * 100);
+}
+
 const usd = new Intl.NumberFormat("en-US", {
   style: "currency",
   currency: "USD",
@@ -11,4 +16,8 @@ const usd = new Intl.NumberFormat("en-US", {
 
 export function formatPrice(value: string | number): string {
   return usd.format(toNumber(value));
+}
+
+export function formatCents(cents: number): string {
+  return usd.format(cents / 100);
 }

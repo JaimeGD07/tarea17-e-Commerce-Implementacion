@@ -16,7 +16,7 @@ export async function UserMenu() {
           </Link>
         </li>
         <li>
-          <Link href="/registro" className={`${buttonPrimary} !py-1.5`}>
+          <Link href="/registro" className={`${buttonPrimary} !hidden !py-1.5 sm:!inline-flex`}>
             Crear cuenta
           </Link>
         </li>

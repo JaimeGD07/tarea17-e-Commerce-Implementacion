@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Suspense } from "react";
+import { AddToCartButton } from "@/components/cart/add-to-cart-button";
 import { ProductImage } from "@/components/product-image";
 import { ProductDetailSkeleton } from "@/components/skeletons";
 import { StockIndicator } from "@/components/stock-indicator";
@@ -56,9 +57,12 @@ async function ProductDetail({
           <StockIndicator stock={product.stock} />
         </div>
 
+        <AddToCartButton product={product} />
+
         {product.description ? (
-          <p className="mt-6 max-w-prose text-muted">{product.description}</p>
+          <p className="mt-8 max-w-prose text-muted">{product.description}</p>
         ) : null}
+
 
         <dl className="mt-8 divide-y divide-line rounded-md border border-line bg-panel text-sm">
           <div className="flex justify-between gap-4 px-4 py-3">

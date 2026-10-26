@@ -7,6 +7,7 @@ import "@fontsource/ibm-plex-mono/latin-400.css";
 import "./globals.css";
 import { SiteHeader } from "@/components/site-header";
 import { SiteFooter } from "@/components/site-footer";
+import { CartProvider } from "@/components/cart/cart-provider";
 
 export const metadata: Metadata = {
   title: {
@@ -27,11 +28,13 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
         >
           Saltar al contenido
         </a>
-        <SiteHeader />
-        <div id="contenido" className="flex-1">
-          {children}
-        </div>
-        <SiteFooter />
+        <CartProvider>
+          <SiteHeader />
+          <div id="contenido" className="flex-1">
+            {children}
+          </div>
+          <SiteFooter />
+        </CartProvider>
       </body>
     </html>
   );

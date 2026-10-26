@@ -18,6 +18,7 @@ const users = [
   { id: 2, name: "Sesión Corta", email: "expira@kodigo.dev", password: "password123" },
 ];
 const revoked = new Set();
+const orders = [];
 
 const send = (res, status, body) => {
   res.writeHead(status, { "Content-Type": "application/json" });
@@ -94,6 +95,52 @@ http.createServer(async (req, res) => {
     if (!userFromToken()) return send(res, 401, { message: "Unauthenticated." });
     revoked.add((req.headers.authorization ?? "").replace(/^Bearer /, ""));
     return send(res, 200, { message: "Sesión cerrada correctamente" });
+  }
+  // ---- Ordenes simuladas (mismo formato y reglas que OrderController de Laravel) ----
+  if (url.pathname === "/__set-stock" && req.method === "POST") {
+    const { id, stock } = await readBody(); // gancho SOLO para pruebas
+    products.find((x) => x.id === id).stock = stock;
+    return send(res, 200, { ok: true });
+  }
+  if (url.pathname.startsWith("/api/orders")) {
+    const u = userFromToken();
+    if (!u) return send(res, 401, { message: "Unauthenticated." });
+    if (url.pathname === "/api/orders" && req.method === "POST") {
+      const { items } = await readBody();
+      if (!Array.isArray(items) || items.length === 0)
+        return send(res, 422, { message: "The items field is required.", errors: { items: ["The items field is required."] } });
+      for (const [i, it] of items.entries()) {
+        if (!products.some((x) => x.id === it.product_id))
+          return send(res, 422, { message: "The selected items.0.product_id is invalid.", errors: { [`items.${i}.product_id`]: ["The selected product is invalid."] } });
+      }
+      let total = 0;
+      for (const it of items) {
+        const p = products.find((x) => x.id === it.product_id);
+        if (p.stock < it.quantity) return send(res, 422, { message: `Stock insuficiente para el producto: ${p.name}` });
+        total += Number(p.price) * it.quantity;
+      }
+      const id = orders.length + 1;
+      const order = {
+        id, user_id: u.id, total: total.toFixed(2), status: "pending", created_at: new Date().toISOString(),
+        items: items.map((it, n) => {
+          const p = products.find((x) => x.id === it.product_id);
+          p.stock -= it.quantity;
+          return { id: id * 10 + n, order_id: id, product_id: p.id, quantity: it.quantity, unit_price: p.price, product: { ...p } };
+        }),
+        payment: null,
+      };
+      orders.push(order);
+      return send(res, 201, order);
+    }
+    if (url.pathname === "/api/orders" && req.method === "GET")
+      return send(res, 200, orders.filter((o) => o.user_id === u.id).reverse());
+    const om = url.pathname.match(/^\/api\/orders\/(\d+)$/);
+    if (om && req.method === "GET") {
+      const o = orders.find((x) => x.id === Number(om[1]));
+      if (!o) return send(res, 404, { message: "No query results for model [App\\Models\\Order]" });
+      if (o.user_id !== u.id) return send(res, 403, { message: "No autorizado para ver esta orden" });
+      return send(res, 200, o);
+    }
   }
   send(res, 404, { message: "Not found" });
 }).listen(8030, () => console.log("mock api on :8030"));
