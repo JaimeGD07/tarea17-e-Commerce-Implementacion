@@ -91,7 +91,20 @@ Con Stripe en modo test: `4242 4242 4242 4242` (aprobada) o `4000 0000 0000 0002
 
 ## Evidencias
 
-Capturas en [`docs/`](docs/): Swagger de la API, flujo de compra y reportes de Lighthouse.
+### API (Swagger)
+![Swagger de la API](docs/swagger-api.png)
+### Flujo de compra
+| Catálogo | Carrito | Checkout |
+| --- | --- | --- |
+| ![Catálogo](docs/flujo-01-catalogo.png) | ![Carrito](docs/flujo-02-carrito.png) | ![Checkout](docs/flujo-03-checkout.png) |
+
+| Pago | Pedido pagado | Historial |
+| --- | --- | --- |
+| ![Pago](docs/flujo-04-pago.png) | ![Pagado](docs/flujo-05-pagado.png) | ![Historial](docs/flujo-06-historial.png) |
+
+### Lighthouse
+![Lighthouse - inicio](docs/lighthouse-home.png)
+![Lighthouse - producto](docs/lighthouse-producto.png)
 
 ## Scripts
 
